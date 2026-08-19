@@ -1,7 +1,9 @@
+import Link from "next/link";
+
 const mockGigs = [
-  { id: 1, title: "Help move dorm furniture", price: "$30", location: "West Hall", category: "Labor" },
-  { id: 2, title: "CS101 Python Tutor Needed", price: "$25/hr", location: "Library", category: "Tutoring" },
-  { id: 3, title: "Campus Event Photographer", price: "$50", location: "Student Union", category: "Events" },
+  { id: "1", title: "Help move dorm furniture", price: "$30", location: "West Hall", category: "Labor" },
+  { id: "2", title: "CS101 Python Tutor Needed", price: "$25/hr", location: "Library", category: "Tutoring" },
+  { id: "3", title: "Campus Event Photographer", price: "$50", location: "Student Union", category: "Events" },
 ];
 
 export default function GigsPage() {
@@ -22,9 +24,12 @@ export default function GigsPage() {
             </div>
             <div className="text-right">
               <p className="text-xl font-bold text-green-600">{gig.price}</p>
-              <button className="mt-2 rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700">
-                Apply
-              </button>
+              <Link
+                href={`/gigs/${gig.id}`}
+                className="mt-2 inline-block rounded-md bg-blue-600 px-4 py-1.5 text-sm font-medium text-white hover:bg-blue-700"
+              >
+                View Details
+              </Link>
             </div>
           </div>
         ))}
