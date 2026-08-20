@@ -11,14 +11,6 @@ router = APIRouter(tags=["payments"])
 
 @router.post("/payments/onboard")
 def onboard_seller(user: dict = Depends(get_current_user)):
-    """
-    Creates (or reuses) a Stripe Connect Express account for the
-    current user and returns a fresh onboarding link.
-
-    NOTE: refresh_url/return_url below are placeholders. Once Adamu
-    has deep-linking set up in the Expo app, these should point at
-    real app URLs (e.g. quadgig://onboarding-complete) instead.
-    """
     supabase = get_supabase()
     stripe = get_stripe()
 
@@ -53,12 +45,6 @@ def onboard_seller(user: dict = Depends(get_current_user)):
 
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request):
-    """
-    Confirms payment success asynchronously. For LOCAL testing, this
-    needs the Stripe CLI (`stripe listen --forward-to
-    localhost:8000/webhooks/stripe`) since Stripe's servers can't
-    reach 127.0.0.1 directly.
-    """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
@@ -67,11 +53,20 @@ async def stripe_webhook(request: Request):
     except Exception as e:
         raise HTTPException(status_code=400, detail=f"Webhook signature verification failed: {e}")
 
+    supabase = get_supabase()
+
     if event["type"] == "payment_intent.succeeded":
         payment_intent_id = event["data"]["object"]["id"]
-        supabase = get_supabase()
         try:
             supabase.table("orders").update({"payment_status": "paid"}) \
+                .eq("stripe_payment_intent_id", payment_intent_id).execute()
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Failed to update order: {e}")
+
+    elif event["type"] == "charge.refunded":
+        payment_intent_id = event["data"]["object"]["payment_intent"]
+        try:
+            supabase.table("orders").update({"payment_status": "refunded"}) \
                 .eq("stripe_payment_intent_id", payment_intent_id).execute()
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to update order: {e}")

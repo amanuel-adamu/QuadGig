@@ -1,4 +1,4 @@
-from app.order_logic import calculate_commission, calculate_seller_payout, check_transition
+from app.order_logic import calculate_commission, calculate_seller_payout, check_transition, should_refund
 
 
 def test_commission_is_ten_percent():
@@ -18,6 +18,22 @@ def test_seller_payout_plus_commission_equals_price():
     commission = calculate_commission(price)
     payout = calculate_seller_payout(price, commission)
     assert payout + commission == price
+
+
+def test_should_refund_paid_order():
+    assert should_refund("paid") is True
+
+
+def test_should_not_refund_pending_order():
+    assert should_refund("pending") is False
+
+
+def test_should_not_refund_already_refunded_order():
+    assert should_refund("refunded") is False
+
+
+def test_should_not_refund_failed_payment():
+    assert should_refund("failed") is False
 
 
 def test_seller_can_accept_a_request():

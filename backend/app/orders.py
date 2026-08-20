@@ -4,7 +4,7 @@ from typing import Optional
 
 from app.db import get_supabase
 from app.deps import get_current_user
-from app.order_logic import calculate_commission, calculate_seller_payout, check_transition
+from app.order_logic import calculate_commission, calculate_seller_payout, check_transition, should_refund
 from app.stripe_client import get_stripe
 
 router = APIRouter(prefix="/orders", tags=["orders"])
@@ -95,17 +95,44 @@ def update_order_status(order_id: str, payload: OrderStatusUpdate, user: dict = 
     if error:
         raise HTTPException(status_code=400, detail=error)
 
+    update_fields = {"status": payload.status}
+
     if payload.status == "confirmed":
         _release_escrow(supabase, order)
+    elif payload.status == "cancelled":
+        if _refund_payment(order):
+            update_fields["payment_status"] = "refunded"
 
-    result = supabase.table("orders").update({"status": payload.status}).eq("id", order_id).execute()
+    result = supabase.table("orders").update(update_fields).eq("id", order_id).execute()
     return result.data[0]
+
+
+def _refund_payment(order: dict) -> bool:
+    """
+    Refunds the buyer in full if a payment was actually captured.
+    Returns True if a refund was issued (caller should record
+    payment_status as 'refunded'), False if there was nothing to
+    refund. Safe to call on any cancellation: check_transition()
+    only allows 'cancelled' from states reachable before 'confirmed'
+    -- the one status that moves money out of the platform's balance
+    -- so the funds are always still sitting there to give back.
+    """
+    if not should_refund(order["payment_status"]):
+        return False
+
+    stripe = get_stripe()
+    try:
+        stripe.v1.refunds.create({"payment_intent": order["stripe_payment_intent_id"]})
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Refund failed: {e}")
+
+    return True
 
 
 def _release_escrow(supabase, order: dict) -> None:
     """
     Transfers the seller's cut (price minus commission) out of the
-    platform's Stripe balance into their connected account.
+    platform's Stripe balance and into their connected account.
     """
     if order["payment_status"] != "paid":
         raise HTTPException(status_code=400, detail="Payment hasn't been confirmed yet -- can't release funds.")

@@ -29,6 +29,11 @@ def calculate_seller_payout(price_cents: int, commission_cents: int) -> int:
     return price_cents - commission_cents
 
 
+def should_refund(payment_status: str) -> bool:
+    """Only refund if a payment was actually captured -- 'pending' or 'failed' mean there's nothing to give back."""
+    return payment_status == "paid"
+
+
 def check_transition(current_status: str, new_status: str, is_buyer: bool, is_seller: bool) -> str | None:
     """
     Returns None if the transition is allowed, or a human-readable

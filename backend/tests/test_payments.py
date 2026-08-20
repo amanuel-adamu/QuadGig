@@ -52,3 +52,17 @@ def test_webhook_accepts_correctly_signed_payload():
         headers={"stripe-signature": _sign(payload)},
     )
     assert response.status_code == 500
+
+
+def test_webhook_handles_charge_refunded_event():
+    payload = json.dumps({
+        "id": "evt_test_refund",
+        "type": "charge.refunded",
+        "data": {"object": {"id": "ch_test", "payment_intent": "pi_test"}},
+    }).encode()
+    response = client.post(
+        "/webhooks/stripe",
+        content=payload,
+        headers={"stripe-signature": _sign(payload)},
+    )
+    assert response.status_code == 500
