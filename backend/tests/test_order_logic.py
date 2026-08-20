@@ -1,4 +1,4 @@
-from app.order_logic import calculate_commission, check_transition
+from app.order_logic import calculate_commission, calculate_seller_payout, check_transition
 
 
 def test_commission_is_ten_percent():
@@ -6,7 +6,18 @@ def test_commission_is_ten_percent():
 
 
 def test_commission_rounds_to_nearest_cent():
-    assert calculate_commission(999) == 100  # 99.9 rounds to 100
+    assert calculate_commission(999) == 100
+
+
+def test_seller_payout_is_price_minus_commission():
+    assert calculate_seller_payout(2000, 200) == 1800
+
+
+def test_seller_payout_plus_commission_equals_price():
+    price = 4999
+    commission = calculate_commission(price)
+    payout = calculate_seller_payout(price, commission)
+    assert payout + commission == price
 
 
 def test_seller_can_accept_a_request():

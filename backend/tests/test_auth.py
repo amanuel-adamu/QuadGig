@@ -2,6 +2,8 @@ import os
 
 os.environ.setdefault("SUPABASE_URL", "https://example.supabase.co")
 os.environ.setdefault("SUPABASE_SERVICE_ROLE_KEY", "test-key")
+os.environ.setdefault("STRIPE_SECRET_KEY", "sk_test_fake")
+os.environ.setdefault("STRIPE_WEBHOOK_SECRET", "whsec_fake")
 
 from fastapi.testclient import TestClient
 from app.main import app
