@@ -5,8 +5,6 @@ no Supabase -- kept separate so every rule is trivially unit testable.
 
 COMMISSION_RATE = 0.10
 
-# (from_status, to_status) -> who is allowed to make this move.
-# "either" covers cancellation, which either party can initiate.
 TRANSITION_RULES = {
     ("requested", "accepted"): "seller",
     ("requested", "cancelled"): "either",
@@ -26,11 +24,15 @@ def calculate_commission(price_cents: int) -> int:
     return round(price_cents * COMMISSION_RATE)
 
 
+def calculate_seller_payout(price_cents: int, commission_cents: int) -> int:
+    """What actually gets transferred to the seller once escrow releases."""
+    return price_cents - commission_cents
+
+
 def check_transition(current_status: str, new_status: str, is_buyer: bool, is_seller: bool) -> str | None:
     """
     Returns None if the transition is allowed, or a human-readable
-    error string if it isn't. Covers both "is this move legal at all"
-    and "is *this person* allowed to make it."
+    error string if it isn't.
     """
     rule = TRANSITION_RULES.get((current_status, new_status))
     if rule is None:
