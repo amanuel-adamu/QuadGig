@@ -13,6 +13,24 @@ export default function PostGigPage() {
   const [category, setCategory] = useState("Tutoring");
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [onboardingLoading, setOnboardingLoading] = useState(false);
+
+  const handleOnboardSeller = async () => {
+    setOnboardingLoading(true);
+    setError(null);
+    try {
+      const data = await apiFetch("/payments/onboard", {
+        method: "POST",
+      });
+      if (data.onboarding_url) {
+        window.location.href = data.onboarding_url;
+      }
+    } catch (err: any) {
+      setError(err.message || "Failed to start seller payout onboarding.");
+    } finally {
+      setOnboardingLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -27,8 +45,6 @@ export default function PostGigPage() {
     setLoading(true);
 
     try {
-      // POST /listings (auth required)
-      // Prices MUST be sent in cents to the backend
       const res = await apiFetch("/listings", {
         method: "POST",
         body: JSON.stringify({
@@ -39,7 +55,6 @@ export default function PostGigPage() {
         }),
       });
 
-      // Redirect to the newly created gig or feed
       if (res.id) {
         router.push(`/gigs/${res.id}`);
       } else {
@@ -60,6 +75,28 @@ export default function PostGigPage() {
       <p className="mt-1 text-sm text-gray-600 dark:text-gray-400">
         Describe what you need help with or what service you are offering to fellow students.
       </p>
+
+      {/* Seller Payout Onboarding Banner */}
+      <div className="mt-6 rounded-lg border border-blue-200 bg-blue-50 p-4 dark:border-zinc-800 dark:bg-zinc-900">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-xs font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
+              Seller Payout Setup
+            </h3>
+            <p className="mt-0.5 text-xs text-blue-700 dark:text-gray-400">
+              Connect your Stripe account to receive payouts when buyers complete orders.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={handleOnboardSeller}
+            disabled={onboardingLoading}
+            className="rounded-md bg-blue-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+          >
+            {onboardingLoading ? "Loading..." : "Setup Payouts"}
+          </button>
+        </div>
+      </div>
 
       {error && (
         <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800">

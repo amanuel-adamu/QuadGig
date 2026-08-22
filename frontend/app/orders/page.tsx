@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { apiFetch } from "../lib/api";
+import ReviewModal from "../components/ReviewModal";
 
 interface Order {
   id: string;
@@ -18,6 +19,7 @@ export default function OrdersPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [selectedOrderForReview, setSelectedOrderForReview] = useState<string | null>(null);
 
   const updateOrderStatus = async (newStatus: string) => {
     if (!activeOrder) return;
@@ -26,7 +28,6 @@ export default function OrdersPage() {
     setLoading(true);
 
     try {
-      // PATCH /orders/{order_id}
       const updated = await apiFetch(`/orders/${activeOrder.id}`, {
         method: "PATCH",
         body: JSON.stringify({ status: newStatus }),
@@ -35,7 +36,6 @@ export default function OrdersPage() {
       setActiveOrder(updated);
       setMessage(`Order status updated to "${newStatus}" successfully!`);
     } catch (err: any) {
-      // Surface backend business rule error directly
       setError(err.message || "Failed to update order status.");
     } finally {
       setLoading(false);
@@ -98,6 +98,15 @@ export default function OrdersPage() {
                 <span className="uppercase text-blue-600">{activeOrder.status}</span>
               </p>
             </div>
+
+            {activeOrder.status === "confirmed" && (
+              <button
+                onClick={() => setSelectedOrderForReview(activeOrder.id)}
+                className="rounded-md bg-amber-500 px-3.5 py-2 text-xs font-semibold text-white hover:bg-amber-600"
+              >
+                Leave Review ⭐
+              </button>
+            )}
           </div>
 
           <div className="mt-6">
@@ -144,6 +153,17 @@ export default function OrdersPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {selectedOrderForReview && (
+        <ReviewModal
+          orderId={selectedOrderForReview}
+          onSuccess={() => {
+            setSelectedOrderForReview(null);
+            alert("Review submitted successfully!");
+          }}
+          onClose={() => setSelectedOrderForReview(null)}
+        />
       )}
     </div>
   );
