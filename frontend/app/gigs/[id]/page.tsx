@@ -1,11 +1,93 @@
-import Link from "next/link";
+"use client";
 
-export default async function GigDetailsPage({
+import { useEffect, useState, use } from "react";
+import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { apiFetch } from "@/app/lib/api";
+import StripeCheckoutModal from "../../components/StripeCheckoutModal";
+import SellerReviews from "../../components/SellerReviews";
+
+interface Listing {
+  id: string;
+  seller_id: string;
+  title: string;
+  description?: string;
+  price_cents: number;
+  category: string;
+  status: string;
+}
+
+export default function GigDetailsPage({
   params,
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
+  const { id } = use(params);
+  const router = useRouter();
+
+  const [listing, setListing] = useState<Listing | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [clientSecret, setClientSecret] = useState<string | null>(null);
+
+  useEffect(() => {
+    async function loadListing() {
+      try {
+        const data = await apiFetch(`/listings/${id}`);
+        setListing(data);
+      } catch (err: any) {
+        setError(err.message || "Failed to load gig details.");
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    loadListing();
+  }, [id]);
+
+  const handleOrder = async () => {
+    setError(null);
+    setSubmitting(true);
+
+    try {
+      const res = await apiFetch("/orders", {
+        method: "POST",
+        body: JSON.stringify({ listing_id: id }),
+      });
+
+      if (res.client_secret) {
+        setClientSecret(res.client_secret);
+      } else {
+        alert(`Order created! Order ID: ${res.id || res.order_id}`);
+      }
+    } catch (err: any) {
+      setError(err.message || "Could not place order.");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div className="mx-auto max-w-2xl p-6 text-center text-gray-500">
+        Loading gig details...
+      </div>
+    );
+  }
+
+  if (error && !listing) {
+    return (
+      <div className="mx-auto max-w-2xl p-6">
+        <div className="rounded-md bg-red-50 p-4 text-red-700 dark:bg-red-950/50 dark:text-red-300">
+          {error}
+        </div>
+        <Link href="/gigs" className="mt-4 inline-block text-sm text-blue-600 hover:underline">
+          ← Back to all gigs
+        </Link>
+      </div>
+    );
+  }
 
   return (
     <div className="mx-auto max-w-2xl p-6">
@@ -13,28 +95,60 @@ export default async function GigDetailsPage({
         ← Back to all gigs
       </Link>
 
-      <div className="mt-4 rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
-        <div className="flex items-center justify-between">
-          <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
-            Gig #{id}
-          </span>
-          <span className="text-2xl font-bold text-green-600">$30</span>
+      {error && (
+        <div className="mt-4 rounded-md bg-red-50 p-3 text-sm text-red-700 dark:bg-red-950/50 dark:text-red-300 border border-red-200 dark:border-red-800">
+          {error}
         </div>
+      )}
 
-        <h1 className="mt-4 text-3xl font-bold tracking-tight">Move dorm furniture</h1>
-        <p className="mt-2 text-sm text-gray-500">Posted 2 hours ago • West Hall</p>
+      {listing && (
+        <>
+          <div className="mt-4 rounded-xl border border-gray-200 bg-white p-8 shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+            <div className="flex items-center justify-between">
+              <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700 dark:bg-blue-950 dark:text-blue-300">
+                {listing.category}
+              </span>
+              <span className="text-2xl font-bold text-green-600">
+                ${(listing.price_cents / 100).toFixed(2)}
+              </span>
+            </div>
 
-        <div className="mt-6 border-t border-gray-100 pt-4 dark:border-zinc-800">
-          <h2 className="text-sm font-semibold text-gray-900 dark:text-zinc-200">Task Description</h2>
-          <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
-            Need someone strong to help move a desk, dressers, and bed frame up two flights of stairs in West Hall. Should take around an hour.
-          </p>
-        </div>
+            <h1 className="mt-4 text-3xl font-bold tracking-tight">{listing.title}</h1>
 
-        <button className="mt-8 w-full rounded-md bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700">
-          Apply for this Gig
-        </button>
-      </div>
+            <div className="mt-6 border-t border-gray-100 pt-4 dark:border-zinc-800">
+              <h2 className="text-sm font-semibold text-gray-900 dark:text-zinc-200">
+                Task Description
+              </h2>
+              <p className="mt-2 text-sm text-gray-600 dark:text-gray-400">
+                {listing.description || "No description provided."}
+              </p>
+            </div>
+
+            <button
+              onClick={handleOrder}
+              disabled={submitting}
+              className="mt-8 w-full rounded-md bg-blue-600 py-3 font-semibold text-white hover:bg-blue-700 disabled:opacity-50"
+            >
+              {submitting ? "Processing..." : "Order / Apply for this Gig"}
+            </button>
+          </div>
+
+          {/* Seller Reviews Section */}
+          <SellerReviews sellerId={listing.seller_id} />
+        </>
+      )}
+
+      {clientSecret && (
+        <StripeCheckoutModal
+          clientSecret={clientSecret}
+          onSuccess={() => {
+            setClientSecret(null);
+            alert("Payment completed successfully!");
+            router.push("/orders");
+          }}
+          onClose={() => setClientSecret(null)}
+        />
+      )}
     </div>
   );
 }
