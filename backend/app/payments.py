@@ -11,6 +11,16 @@ router = APIRouter(tags=["payments"])
 
 @router.post("/payments/onboard")
 def onboard_seller(user: dict = Depends(get_current_user)):
+    """
+    Creates (or reuses) a Stripe Connect Express account for the
+    current user and returns a fresh onboarding link. Account Links
+    expire quickly, so a new one is generated on every call rather
+    than caching the URL.
+
+    NOTE: refresh_url/return_url below are placeholders. Once Adamu
+    has deep-linking set up in the Expo app, these should point at
+    real app URLs (e.g. quadgig://onboarding-complete) instead.
+    """
     supabase = get_supabase()
     stripe = get_stripe()
 
@@ -43,8 +53,41 @@ def onboard_seller(user: dict = Depends(get_current_user)):
     return {"onboarding_url": link.url}
 
 
+@router.get("/payments/onboard/status")
+def onboard_status(user: dict = Depends(get_current_user)):
+    """
+    Definitive check of whether onboarding actually completed,
+    straight from Stripe -- rather than inferring it from whatever
+    page the browser happened to land on.
+    """
+    supabase = get_supabase()
+    user_row = supabase.table("users").select("stripe_connect_account_id").eq("id", user["id"]).execute()
+    account_id = user_row.data[0]["stripe_connect_account_id"] if user_row.data else None
+
+    if not account_id:
+        return {"has_account": False, "details_submitted": False, "payouts_enabled": False}
+
+    stripe = get_stripe()
+    try:
+        account = stripe.v1.accounts.retrieve(account_id)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't check account status: {e}")
+
+    return {
+        "has_account": True,
+        "details_submitted": account.details_submitted,
+        "payouts_enabled": account.payouts_enabled,
+    }
+
+
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request):
+    """
+    Confirms payment success asynchronously rather than trusting the
+    client alone. For LOCAL testing, this endpoint needs the Stripe
+    CLI (`stripe listen --forward-to localhost:8000/webhooks/stripe`)
+    since Stripe's servers can't reach 127.0.0.1 directly.
+    """
     payload = await request.body()
     sig_header = request.headers.get("stripe-signature", "")
 
