@@ -33,11 +33,39 @@ class OrderCreateResponse(OrderResponse):
     client_secret: Optional[str] = None
 
 
+@router.get("/{order_id}", response_model=OrderResponse)
+def get_order(order_id: str, user: dict = Depends(get_current_user)):
+    """
+    Fetches a single order. Only the buyer or seller on that order can
+    view it -- prevents anyone from looking up an arbitrary order by
+    guessing its UUID.
+    """
+    supabase = get_supabase()
+
+    try:
+        order_result = supabase.table("orders").select("*").eq("id", order_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't look up order: {e}")
+
+    if not order_result.data:
+        raise HTTPException(status_code=404, detail="Order not found.")
+    order = order_result.data[0]
+
+    if user["id"] not in (order["buyer_id"], order["seller_id"]):
+        raise HTTPException(status_code=403, detail="You're not part of this order.")
+
+    return order
+
+
 @router.post("", response_model=OrderCreateResponse, status_code=201)
 def create_order(payload: OrderCreate, user: dict = Depends(get_current_user)):
     supabase = get_supabase()
 
-    listing_result = supabase.table("listings").select("*").eq("id", payload.listing_id).execute()
+    try:
+        listing_result = supabase.table("listings").select("*").eq("id", payload.listing_id).execute()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't look up listing: {e}")
+
     if not listing_result.data:
         raise HTTPException(status_code=404, detail="Listing not found.")
     listing = listing_result.data[0]
@@ -62,15 +90,18 @@ def create_order(payload: OrderCreate, user: dict = Depends(get_current_user)):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Couldn't start payment: {e}")
 
-    result = supabase.table("orders").insert({
-        "listing_id": listing["id"],
-        "buyer_id": user["id"],
-        "seller_id": listing["seller_id"],
-        "price_cents": price_cents,
-        "commission_cents": commission_cents,
-        "status": "requested",
-        "stripe_payment_intent_id": payment_intent.id,
-    }).execute()
+    try:
+        result = supabase.table("orders").insert({
+            "listing_id": listing["id"],
+            "buyer_id": user["id"],
+            "seller_id": listing["seller_id"],
+            "price_cents": price_cents,
+            "commission_cents": commission_cents,
+            "status": "requested",
+            "stripe_payment_intent_id": payment_intent.id,
+        }).execute()
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Payment started, but saving the order failed: {e}")
 
     order = result.data[0]
     order["client_secret"] = payment_intent.client_secret
