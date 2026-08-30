@@ -92,7 +92,7 @@ def login(payload: LoginRequest):
                 status_code=403,
                 detail="Please confirm your email before logging in — check your inbox for the link.",
             )
-        raise HTTPException(status_code=401, detail="Invalid email or password.")
+        raise HTTPException(status_code=401, detail=f"Login failed: {e}")
 
     user = auth_response.user
     session = auth_response.session
