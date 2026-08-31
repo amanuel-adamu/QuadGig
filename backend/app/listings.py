@@ -48,7 +48,19 @@ def browse_listings():
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Couldn't reach the database: {e}")
     return result.data
-
+@router.get("/mine", response_model=list[ListingResponse])
+def list_my_listings(user: dict = Depends(get_current_user)):
+    """
+    Lists every listing the current user has created, regardless of
+    status (active, paused, or deleted) -- unlike the public browse
+    endpoint above, which only shows active ones.
+    """
+    supabase = get_supabase()
+    try:
+        result = supabase.table("listings").select("*").eq("seller_id", user["id"]).execute()
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't reach the database: {e}")
+    return result.data
 
 @router.get("/{listing_id}", response_model=ListingResponse)
 def get_listing(listing_id: str):
