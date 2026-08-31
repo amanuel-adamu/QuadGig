@@ -31,7 +31,26 @@ class OrderResponse(BaseModel):
 
 class OrderCreateResponse(OrderResponse):
     client_secret: Optional[str] = None
+@router.get("", response_model=list[OrderResponse])
+def list_orders(user: dict = Depends(get_current_user)):
+    """
+    Lists every order where the current user is either the buyer or the
+    seller, most recent first.
+    """
+    supabase = get_supabase()
 
+    try:
+        result = (
+            supabase.table("orders")
+            .select("*")
+            .or_(f"buyer_id.eq.{user['id']},seller_id.eq.{user['id']}")
+            .order("created_at", desc=True)
+            .execute()
+        )
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Couldn't list orders: {e}")
+
+    return result.data
 @router.get("/{order_id}", response_model=OrderResponse)
 def get_order(order_id: str, user: dict = Depends(get_current_user)):
     """
