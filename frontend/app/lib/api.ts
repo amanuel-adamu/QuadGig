@@ -19,3 +19,17 @@ export async function apiFetch(endpoint: string, options: RequestInit = {}) {
 
   return data;
 }
+
+export function getCurrentUserId(): string | null {
+  const token = typeof window !== "undefined" ? localStorage.getItem("access_token") : null;
+  if (!token) return null;
+
+  try {
+    const payloadBase64 = token.split(".")[1];
+    const normalized = payloadBase64.replace(/-/g, "+").replace(/_/g, "/");
+    const payload = JSON.parse(atob(normalized));
+    return payload.sub || null;
+  } catch {
+    return null;
+  }
+}
