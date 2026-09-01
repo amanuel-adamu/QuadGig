@@ -57,26 +57,16 @@ def signup(payload: SignupRequest):
     if user is None:
         raise HTTPException(status_code=400, detail="Signup failed.")
 
-    try:
-        supabase.table("users").insert({
-            "id": user.id,
-            "email": payload.email,
-            "display_name": payload.display_name,
-            "edu_verified": False,
-        }).execute()
-    except Exception as e:
-        raise HTTPException(
-            status_code=500,
-            detail=f"Auth account created, but saving the profile failed: {e}",
-        )
+    # public.users is now populated automatically by the on_auth_user_created
+    # trigger the moment the auth.users row commits -- this avoids the
+    # foreign-key race where our own insert could run before that row was
+    # fully visible.
 
     return SignupResponse(
         id=user.id,
         email=payload.email,
         message="Check your inbox to confirm your email before logging in.",
     )
-
-
 @router.post("/login", response_model=LoginResponse)
 def login(payload: LoginRequest):
     supabase = get_supabase()
